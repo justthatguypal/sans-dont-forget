@@ -1960,12 +1960,20 @@
   const DUST_LIFE = 0.3;
 
   function spawnDust(x, y, angle) {
-    G.dust.push({ x, y, angle, t: 0 });
+    /* v is how hard the air is pushed along the shot */
+    G.dust.push({ x, y, angle, t: 0, v: 30 + Math.random() * 14 });
   }
 
   function updateDust(dt) {
     if (!G.dust.length) return;
-    for (const d of G.dust) d.t += dt;
+    for (const d of G.dust) {
+      d.t += dt;
+      /* the ring is carried down the shot as it fades, rather than swelling on
+         the spot: it is air being shoved, not a bubble inflating */
+      d.x += Math.cos(d.angle) * d.v * dt;
+      d.y += Math.sin(d.angle) * d.v * dt;
+      d.v *= 1 - 1.6 * dt;
+    }
     G.dust = G.dust.filter((d) => d.t < DUST_LIFE);
   }
 

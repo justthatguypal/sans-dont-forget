@@ -118,10 +118,11 @@
     { name: 'MID', hp: 92, dmg: 1, speed: 1, bar: 1, blurb: 'the way it was meant to go.' },
     { name: 'HARD', hp: 76, dmg: 1.35, speed: 1.18, bar: 1.15, blurb: 'he stops explaining the rules.' },
     { name: 'INSANE', hp: 60, dmg: 1.7, speed: 1.32, bar: 1.3, blurb: 'the hallway stops forgiving.' },
-    { name: 'BAD TIME', hp: 56, dmg: 2.1, speed: 1.36, bar: 1.45, blurb: 'you asked for this one.', hot: true },
     /* not a difficulty: a different fight. he is past time here, and only his
-       own attacks run, all of them at once, with the Lethal Deal track under it */
+       own attacks run, with the Lethal Deal track under it. Kept ahead of BAD
+       TIME so it is always pickable, whatever has been cleared. */
     { name: 'LETHAL DEAL', hp: 30, dmg: 2.8, speed: 1.62, bar: 1.55, lethal: true, blurb: 'he is above all of it now.', hot: true },
+    { name: 'BAD TIME', hp: 56, dmg: 2.1, speed: 1.36, bar: 1.45, blurb: 'you asked for this one.', hot: true },
   ];
   function diffNow() { return DIFFS[G.diff.i] || DIFFS[1]; }
 
@@ -3266,7 +3267,9 @@
       const c = sel ? (d.hot ? '#ff5050' : '#ffff00') : '#8a8a8a';
       if (sel && d.hot) glowTxt(d.name, 214, y, c, F18, 'left', 16);
       else txt(d.name, 214, y, c, F18);
-      txt('HP ' + d.hp, 434, y + 3, sel ? '#fff' : '#5a5a5a', F14, 'right');
+      txt('HP ' + d.hp, 420, y + 3, sel ? '#fff' : '#5a5a5a', F14, 'right');
+      /* one pass of the FIGHT cursor, centre to centre: the number you feel */
+      txt((1 / (FIGHT_SWEEP * d.bar)).toFixed(2) + 's', 506, y + 3, sel ? '#fff' : '#4a4a4a', F12, 'right');
       if (sel) drawSoul(188, y + 3, '#ff0000', 1);
     }
 

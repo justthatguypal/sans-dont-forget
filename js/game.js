@@ -60,10 +60,13 @@
   /* Animation clips cut from the sheet. Each clip is a list of frame indices
      inside one row: handdown_0..4 (arms down) and handup_0..5 (arms up). */
   const POSES = {
-    idle: { set: 'handdown', frames: [0, 1, 0, 3], fps: 2.4 },
+    /* the sheet's frames are not all the same pose: 0-2 have an arm raised,
+       3-4 have the arms hanging. Idle is the one flat frame so his hands stay
+       put; only the bones that rise or fall move them. */
+    idle: { set: 'handdown', frames: [4], fps: 1 },
     talk: { set: 'handdown', frames: [2, 4, 3, 1], fps: 7, once: true },
-    handUp: { set: 'handup', frames: [2, 1, 3, 4], fps: 10, once: true },
-    handDown: { set: 'handdown', frames: [4, 3, 4, 2], fps: 10, once: true },
+    handUp: { set: 'handup', frames: [3, 4, 3], fps: 10, once: true },
+    handDown: { set: 'handdown', frames: [3, 4, 3], fps: 10, once: true },
     summon: { set: 'handup', frames: [3, 5, 4, 5], fps: 13, once: true },
     tired: { set: 'wrapped', frames: [0], fps: 1 },
   };

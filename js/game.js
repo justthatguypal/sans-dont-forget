@@ -2460,9 +2460,13 @@
         if (!f) break;
         if (f.stage === 'bar') {
           if (backPressed()) { G.mode = 'menu'; break; }
+          const prevPos = f.pos;
           f.pos += f.dir * dt * FIGHT_SWEEP;
           if (f.pos > 1) { f.pos = 1; f.dir = -1; }
           if (f.pos < 0) { f.pos = 0; f.dir = 1; }
+          /* a click as the cursor crosses dead centre, so the sweet spot can
+             be timed by ear as well as by eye */
+          if ((prevPos < 0.5 && f.pos >= 0.5) || (prevPos > 0.5 && f.pos <= 0.5)) audio.tick();
           if (okPressed()) {
             audio.slash();
             /* 1 dead centre, 0 at the very end of the bar */

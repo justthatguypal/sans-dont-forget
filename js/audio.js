@@ -39,6 +39,8 @@ const audio = (() => {
     /* the screen going: a brittle snap over falling chips, then the deep boom
        underneath it. Both are built from samples already in assets/sfx. */
     crack: { file: 'slash', gain: 0.5, rate: 2.6, maxDur: 0.45 },
+    /* the fight bar passing dead centre: a short click, not a note */
+    tick: { file: 'blip_sans', gain: 0.13, rate: 4.4, maxDur: 0.05 },
     tinkle: { file: 'blip_sans', gain: 0.16, rate: 3.0, maxDur: 0.26 },
     boom: { file: 'phase', gain: 0.8, rate: 0.42, maxDur: 2.2 },
     boomSub: { file: 'death', gain: 0.75, rate: 0.55, maxDur: 1.7 },
@@ -300,6 +302,7 @@ const audio = (() => {
     dying() { play('death'); },
     gameover() { play('gameover'); },
     phase() { play('phase'); },
+    tick() { play('tick'); },
 
     /* glass: one hard snap, then chips of it falling away behind */
     crack() {

@@ -911,7 +911,9 @@
   function hurt(amount) {
     const p = G.player;
     if (p.invuln > 0) return;
-    p.hp -= amount * diffNow().dmg;
+    /* his lethal hands hurt far more than the numbers on the sheet: every hit
+       in that fight lands half again as hard */
+    p.hp -= amount * diffNow().dmg * (diffNow().lethal ? 1.5 : 1);
     p.kr = Math.min(14, p.kr + 4);
     p.invuln = 0.85;
     if (G.run) {
@@ -2097,7 +2099,13 @@
       ctx.translate(0, blasterKick(b));
       if (b.phase === 'fire') scale *= 1 + 0.06 * Math.max(0, 1 - b.pt / 0.16);
 
-      ctx.scale(scale * BLASTER_S, scale * BLASTER_S);
+      /* in the lethal fight the skulls come through bigger, with a red halo */
+      const lethalSize = diffNow().lethal ? 1.3 : 1;
+      if (diffNow().lethal) {
+        ctx.shadowColor = '#ff2b2b';
+        ctx.shadowBlur = 26;
+      }
+      ctx.scale(scale * BLASTER_S * lethalSize, scale * BLASTER_S * lethalSize);
       if (img && img.complete) ctx.drawImage(img, -21, -28, 43, 57);
       ctx.restore();
       ctx.globalAlpha = 1;
@@ -3239,9 +3247,26 @@
   function drawSoulInBox() {
     if (G.player.invuln > 0 && Math.floor(G.t * 20) % 2 === 0) return;
     const held = G.soul.dark > 0;
-    drawBigSoul(G.soul.x, G.soul.y, held
-      ? (Math.floor(G.t * 10) % 2 ? '#7a0000' : '#3a0000')
-      : (diffNow().lethal ? lethalSoulCol() : '#ff0000'));
+    if (held) {
+      drawBigSoul(G.soul.x, G.soul.y, Math.floor(G.t * 10) % 2 ? '#7a0000' : '#3a0000');
+    } else if (diffNow().lethal) {
+      /* split down the middle: neon blue on the left, burning red on the right */
+      const mid = G.soul.x + 6;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, mid, H);
+      ctx.clip();
+      drawBigSoul(G.soul.x, G.soul.y, lethalHot(0.6) > 0.4 ? '#3fa9ff' : '#1d5fd6');
+      ctx.restore();
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(mid, 0, W - mid, H);
+      ctx.clip();
+      drawBigSoul(G.soul.x, G.soul.y, lethalSoulCol());
+      ctx.restore();
+    } else {
+      drawBigSoul(G.soul.x, G.soul.y, '#ff0000');
+    }
   }
 
   function drawList() {

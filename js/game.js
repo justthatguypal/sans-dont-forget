@@ -1622,15 +1622,38 @@
         const dy = cy - H / 2;
         const d = Math.hypot(dx, dy) || 1;
         const sp = 90 + Math.random() * 220;
-        /* thrown outward, flicked up a little, then dropped by gravity */
+        /* thrown outward, flicked up a little, then dropped by gravity. They
+           start already askew, so the break never reads as a lattice lifting
+           off in step */
         shards.push({
           x, y, w, h, cx, cy,
           vx: (dx / d) * sp * (0.7 + Math.random() * 0.6),
           vy: (dy / d) * sp * 0.5 - (40 + Math.random() * 150),
-          rot: 0,
-          spin: (Math.random() - 0.5) * 6,
+          rot: (Math.random() - 0.5) * 0.14,
+          spin: (Math.random() - 0.5) * 7,
         });
       }
+    }
+    /* offcuts: small chips taken from wherever they land, so the glass breaks
+       into slivers as well as panes */
+    for (let i = 0; i < 16; i++) {
+      const cw = 7 + Math.random() * 24;
+      const ch = 7 + Math.random() * 24;
+      const cx0 = Math.random() * (W - cw);
+      const cy0 = Math.random() * (H - ch);
+      const cx = cx0 + cw / 2;
+      const cy = cy0 + ch / 2;
+      const dx = cx - W / 2;
+      const dy = cy - H / 2;
+      const d = Math.hypot(dx, dy) || 1;
+      const sp = 130 + Math.random() * 250;
+      shards.push({
+        x: cx0, y: cy0, w: cw, h: ch, cx, cy, chip: true,
+        vx: (dx / d) * sp * (0.8 + Math.random() * 0.7),
+        vy: (dy / d) * sp * 0.55 - (50 + Math.random() * 170),
+        rot: Math.random() * Math.PI,
+        spin: (Math.random() - 0.5) * 15,
+      });
     }
     return shards;
   }
@@ -1702,6 +1725,14 @@
       ctx.translate(p.cx, p.cy);
       ctx.rotate(p.rot);
       ctx.drawImage(s.snap, p.x, p.y, p.w, p.h, -p.w / 2, -p.h / 2, p.w, p.h);
+      /* a chip carries almost no picture, so give it an edge to catch the eye */
+      if (p.chip) {
+        ctx.globalAlpha = fade * 0.45;
+        ctx.strokeStyle = '#cfe0ff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.globalAlpha = fade;
+      }
       ctx.restore();
     }
     ctx.restore();

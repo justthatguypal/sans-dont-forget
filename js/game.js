@@ -210,6 +210,7 @@
     mode: 'title',
     t: 0,
     shake: 0,
+    kick: null,
     flash: 0,
     dyingT: 0,
     player: { name: 'FRISK', lv: 19, hp: 92, maxhp: 92, kr: 0, invuln: 0 },
@@ -856,6 +857,9 @@
             b.pt = 0;
             audio.blaster();
             G.shake = Math.max(G.shake, 11);
+            /* the whole frame is shoved along the beam, then settles: the
+               random shake is noise, this is the direction of the force */
+            G.kick = { x: Math.cos(b.angle), y: Math.sin(b.angle), t: 0.24 };
             G.flash = Math.min(0.4, G.flash + 0.22);
             const o = blasterOrigin(b);
             const mx = o.x + Math.cos(b.angle) * 32;
@@ -2912,6 +2916,10 @@
       if (G.achToast.t > 3.2) G.achToast = null;
     }
     if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 46);
+    if (G.kick) {
+      G.kick.t -= dt;
+      if (G.kick.t <= 0) G.kick = null;
+    }
     if (G.flash > 0) G.flash = Math.max(0, G.flash - dt * 1.6);
     if (G.banner) {
       G.banner.t += dt;
@@ -3163,6 +3171,11 @@
     ctx.save();
     if (G.shake > 0.4) {
       ctx.translate(Math.round((Math.random() - 0.5) * G.shake), Math.round((Math.random() - 0.5) * G.shake));
+    }
+    if (G.kick) {
+      /* a short shove along the beam: quick out, quick back */
+      const k = Math.sin((G.kick.t / 0.24) * Math.PI) * 5;
+      ctx.translate(Math.round(G.kick.x * k), Math.round(G.kick.y * k));
     }
 
     if (G.mode === 'title') {

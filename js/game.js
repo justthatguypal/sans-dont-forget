@@ -89,11 +89,12 @@
      in the box moves. Speed also tightens every spawn timer, because the
      attacks run on scaled time. */
   const DIFFS = [
-    { name: 'EASY', hp: 140, dmg: 0.5, speed: 0.78, blurb: 'he is being polite about it.' },
-    { name: 'MID', hp: 92, dmg: 1, speed: 1, blurb: 'the way it was meant to go.' },
-    { name: 'HARD', hp: 76, dmg: 1.35, speed: 1.18, blurb: 'he stops explaining the rules.' },
-    { name: 'INSANE', hp: 60, dmg: 1.7, speed: 1.32, blurb: 'the hallway stops forgiving.' },
-    { name: 'BAD TIME', hp: 56, dmg: 2.1, speed: 1.36, blurb: 'you asked for this one.', hot: true },
+    /* bar = how fast the FIGHT cursor sweeps, on top of FIGHT_SWEEP */
+    { name: 'EASY', hp: 140, dmg: 0.5, speed: 0.78, bar: 0.8, blurb: 'he is being polite about it.' },
+    { name: 'MID', hp: 92, dmg: 1, speed: 1, bar: 1, blurb: 'the way it was meant to go.' },
+    { name: 'HARD', hp: 76, dmg: 1.35, speed: 1.18, bar: 1.15, blurb: 'he stops explaining the rules.' },
+    { name: 'INSANE', hp: 60, dmg: 1.7, speed: 1.32, bar: 1.3, blurb: 'the hallway stops forgiving.' },
+    { name: 'BAD TIME', hp: 56, dmg: 2.1, speed: 1.36, bar: 1.45, blurb: 'you asked for this one.', hot: true },
   ];
   function diffNow() { return DIFFS[G.diff.i] || DIFFS[1]; }
 
@@ -2461,7 +2462,7 @@
         if (f.stage === 'bar') {
           if (backPressed()) { G.mode = 'menu'; break; }
           const prevPos = f.pos;
-          f.pos += f.dir * dt * FIGHT_SWEEP;
+          f.pos += f.dir * dt * FIGHT_SWEEP * (diffNow().bar || 1);
           if (f.pos > 1) { f.pos = 1; f.dir = -1; }
           if (f.pos < 0) { f.pos = 0; f.dir = 1; }
           /* a click as the cursor crosses dead centre, so the sweet spot can

@@ -537,6 +537,111 @@
     ctx.restore();
   }
 
+  /* The lethal arena: a red sky with an eye in it, skulls looming either side,
+     bones standing in the floor. Drawn here rather than loaded, so it belongs
+     to the game the same way the memory panels do. */
+  function drawLethalBackground() {
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#1b0002');
+    sky.addColorStop(0.32, '#3a0509');
+    sky.addColorStop(0.52, '#120a1c');
+    sky.addColorStop(0.72, '#0a0f2a');
+    sky.addColorStop(1, '#0b1533');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    /* the eye: a lid of dark red, a slit pupil, and it breathes */
+    const ex = W / 2;
+    const ey = 96;
+    const open = 0.72 + Math.sin(G.t * 0.9) * 0.06;
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    const lidGrd = ctx.createRadialGradient(ex, ey, 10, ex, ey, 190);
+    lidGrd.addColorStop(0, '#ff1a1a');
+    lidGrd.addColorStop(0.55, 'rgba(150,0,0,0.55)');
+    lidGrd.addColorStop(1, 'rgba(40,0,0,0)');
+    ctx.fillStyle = lidGrd;
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, 210, 78 * open, 0, 0, Math.PI * 2);
+    ctx.fill();
+    /* the iris, thin like a cat's */
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#5c0000';
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, 34, 62 * open, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ff2b2b';
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, 9 + Math.sin(G.t * 2.2) * 1.5, 54 * open, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = '#ff5050';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, 120 + i * 46, 40 * open + i * 12, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    /* the hall: two rows of arches fading into the dark */
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#16204a';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 4; i++) {
+      const inset = 40 + i * 62;
+      const top = 150 + i * 26;
+      ctx.beginPath();
+      ctx.moveTo(inset, 300);
+      ctx.lineTo(inset, top + 40);
+      ctx.quadraticCurveTo(inset, top, inset + 40, top);
+      ctx.lineTo(W - inset - 40, top);
+      ctx.quadraticCurveTo(W - inset, top, W - inset, top + 40);
+      ctx.lineTo(W - inset, 300);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    /* skulls either side of him, dark, watching */
+    for (let side = 0; side < 2; side++) {
+      const sx = side === 0 ? 84 : W - 84;
+      ctx.save();
+      ctx.translate(sx, 196 + Math.sin(G.t * 1.3 + side) * 4);
+      ctx.scale(side === 0 ? 1 : -1, 1);
+      ctx.fillStyle = '#0d1233';
+      ctx.beginPath();
+      ctx.moveTo(-52, 92);
+      ctx.lineTo(-30, -14);
+      ctx.lineTo(0, -58);
+      ctx.lineTo(30, -14);
+      ctx.lineTo(52, 92);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(120,180,255,0.85)';
+      ctx.beginPath();
+      ctx.ellipse(-16, -14, 10, 14, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(20, -16, 8, 11, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    /* bones standing in the floor */
+    ctx.fillStyle = '#22305e';
+    for (let i = 0; i < 9; i++) {
+      const bx = 40 + i * 68;
+      const bh = 22 + ((i * 37) % 26);
+      ctx.fillRect(bx, H - 58 - bh, 9, bh);
+      ctx.beginPath();
+      ctx.arc(bx + 4, H - 58 - bh, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#0a0f22';
+    ctx.fillRect(0, H - 58, W, 58);
+  }
+
   function drawMenuRow() {
     const labels = ['FIGHT', 'ACT', 'ITEM', 'MERCY'];
     const colW = BOX.w / 4;
@@ -3251,7 +3356,8 @@
     } else if (G.mode === 'ach') {
       drawAch();
     } else {
-      drawBackground();
+      if (diffNow().lethal) drawLethalBackground();
+      else drawBackground();
       if (G.mode !== 'gameover') drawSans();
       drawSword();
       drawBoxFrame();

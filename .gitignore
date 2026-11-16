@@ -1,0 +1,4 @@
+# local-only folders and unrelated files
+.freebuff/
+node_modules/
+FirstPersonCamera.client.luau

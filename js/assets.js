@@ -10,6 +10,11 @@ const SPRITE_NAMES = (() => {
     ['face', 11],
     ['faceboss', 15],
     ['blaster', 6],
+    /* frames cut from the sword sheet: held, drawn, swinging */
+    ['sword_idle', 6],
+    ['sword_equip', 4],
+    ['sword_slash', 7],
+    ['sword_heavy', 4],
   ];
   for (const [prefix, count] of rows) {
     for (let i = 0; i < count; i++) names.push(prefix + '_' + i);
@@ -30,7 +35,7 @@ let assetsReady = false;
 
 /* bump this whenever the files in assets/sprites are replaced, so the browser
    does not keep drawing a cached copy of an older sheet */
-const SPRITE_VERSION = '2';
+const SPRITE_VERSION = '3';
 
 (function loadSprites() {
   let left = SPRITE_NAMES.length;

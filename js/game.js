@@ -78,6 +78,19 @@
      width, so the bright part of the beam is the only part that burns you. */
   const BEAM_HALF = 12.5;
 
+  /* the blade he draws once he stops pretending. Frames were cut from the sword
+     sheet into assets/sprites/sword_<anim>_<n>.png; a held animation is centred
+     per frame so it stays put, a swing keeps its sheet position so the arc
+     travels across the canvas. */
+  const SWORD = {
+    idle:  { n: 6, fps: 7,  w: 90,  h: 179, scale: 0.62, ax: 396, ay: 248 },
+    equip: { n: 4, fps: 9,  w: 129, h: 214, scale: 0.62, ax: 396, ay: 248 },
+    /* the swings are anchored on him, not beside him: the arc is meant to cut
+       across the sprite rather than sit in the gap next to it */
+    slash: { n: 7, fps: 17, w: 851, h: 172, scale: 0.52, ax: 508, ay: 250 },
+    heavy: { n: 4, fps: 11, w: 605, h: 191, scale: 0.52, ax: 508, ay: 250 },
+  };
+
   /* FIGHT bar: how many times the cursor crosses the bar per second.
      0.9 = about 1.1s each way, 1.1 = about 0.9s, 0.6 = a slow crawl. */
   const FIGHT_SWEEP = 1.1;
@@ -185,6 +198,7 @@
     banner: null,
     bannerPending: false,
     sans: { pose: 'idle', frameIdx: 0, animT: 0, poseHold: 0, poseT: 0, face: 'face_0', alpha: 1, bob: 0 },
+    sword: { anim: 'idle', t: 0, frame: 0 },
     soul: { x: 0, y: 0, px: 0, py: 0, w: 12, h: 10, vy: 0, mode: 'red', onGround: false },
     bullets: [],
     sparks: [],
@@ -332,6 +346,41 @@
       s.poseT += dt;
       if (s.poseT > s.poseHold) sansPose('idle');
     }
+  }
+
+  /* ---------------- the blade ---------------- */
+
+  function swordAnim(name) {
+    if (!SWORD[name]) return;
+    G.sword = { anim: name, t: 0, frame: 0 };
+  }
+
+  function updateSword(dt) {
+    const sw = G.sword;
+    if (!sw) return;
+    if (G.phase < 5) { sw.anim = 'idle'; sw.t = 0; sw.frame = 0; return; }
+    const def = SWORD[sw.anim] || SWORD.idle;
+    sw.t += dt;
+    /* equip and the swings fire once, then it goes back to floating */
+    if (sw.anim !== 'idle' && sw.t >= def.n / def.fps) { sw.anim = 'idle'; sw.t = 0; }
+    sw.frame = Math.floor(sw.t * def.fps) % def.n;
+  }
+
+  function drawSword() {
+    const sw = G.sword;
+    if (!sw || G.phase < 5 || G.flags.finale) return;
+    const def = SWORD[sw.anim] || SWORD.idle;
+    const img = SPR['sword_' + sw.anim + '_' + (sw.frame % def.n)];
+    if (!img || !img.complete) return;
+    const w = def.w * def.scale;
+    const h = def.h * def.scale;
+    /* the held blade hangs at his left and breathes */
+    const ax = def.ax;
+    const ay = def.ay + Math.sin(G.t * 1.7) * 4;
+    ctx.save();
+    ctx.globalAlpha = G.sans.alpha;
+    ctx.drawImage(img, Math.round(ax - w / 2), Math.round(ay - h), Math.round(w), Math.round(h));
+    ctx.restore();
   }
 
   function drawSans() {
@@ -1967,6 +2016,8 @@
     if (ph !== G.phase) {
       G.phase = ph;
       G.bannerPending = true;
+      /* the last phase is where he finally reaches for it */
+      if (ph === 5) swordAnim('equip');
     }
     /* once he is like this he does not use his own turn list any more — every
        turn in the last phase is improvised, except the special attack */
@@ -2014,6 +2065,7 @@
     if (atk.blue) { G.soul.y = FLOOR - G.soul.h; G.soul.onGround = true; }
     G.player.invuln = 0.4;
     sansPose('idle');
+    if (G.phase === 5) swordAnim(key === 'finale' || Math.random() < 0.3 ? 'heavy' : 'slash');
   }
 
   function endAttack() {
@@ -2377,6 +2429,7 @@
     }
     updateSparks(dt);
     updateSansAnim(dt);
+    updateSword(dt);
 
     if (heldPress('KeyM', dt, 9, 9)) audio.toggleMute();
 
@@ -2596,6 +2649,7 @@
     } else {
       drawBackground();
       if (G.mode !== 'gameover') drawSans();
+      drawSword();
       drawBoxFrame();
 
       ctx.save();

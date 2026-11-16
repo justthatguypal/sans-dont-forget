@@ -121,9 +121,15 @@
     { name: 'BAD TIME', hp: 56, dmg: 2.1, speed: 1.36, bar: 1.45, blurb: 'you asked for this one.', hot: true },
     /* not a difficulty: a different fight. he is past time here, and only his
        own attacks run, all of them at once, with the Lethal Deal track under it */
-    { name: 'LETHAL DEAL', hp: 44, dmg: 2.2, speed: 1.5, bar: 1.5, lethal: true, blurb: 'he is above all of it now.', hot: true },
+    { name: 'LETHAL DEAL', hp: 30, dmg: 2.8, speed: 1.62, bar: 1.55, lethal: true, blurb: 'he is above all of it now.', hot: true },
   ];
   function diffNow() { return DIFFS[G.diff.i] || DIFFS[1]; }
+
+  /* the lethal fight breathes red: bones, the soul and the menu all swing
+     between a deep dried red and a bright one, out of step with each other */
+  function lethalHot(seed) { return 0.5 + 0.5 * Math.sin(G.t * 8 + (seed || 0)); }
+  function lethalBoneCol(seed) { return lethalHot(seed) > 0.5 ? '#ff4a4a' : '#5c0000'; }
+  function lethalSoulCol() { return lethalHot(1.6) > 0.45 ? '#ff2b2b' : '#7a0000'; }
 
   /* the difficulty you last picked is remembered between visits, and BAD TIME
      stays hidden until you've actually cleared the fight on one of the others */
@@ -536,7 +542,8 @@
     for (let i = 0; i < 4; i++) {
       const cx = BOX.x + colW * i + colW / 2;
       const selected = G.mode === 'menu' && G.menu.i === i;
-      if (neon) glowTxt(labels[i], cx, MENU_Y, neonColor(i), F18, 'center', selected ? 20 : 12);
+      if (diffNow().lethal) glowTxt(labels[i], cx, MENU_Y, lethalBoneCol(i * 1.3), F18, 'center', selected ? 22 : 14);
+      else if (neon) glowTxt(labels[i], cx, MENU_Y, neonColor(i), F18, 'center', selected ? 20 : 12);
       else txt(labels[i], cx, MENU_Y, selected ? '#ffff00' : '#fff', F18, 'center');
       if (selected) drawSoul(cx - textWidth(labels[i], F18) / 2 - 18, MENU_Y + 4, '#ff0000', 1);
     }
@@ -1133,7 +1140,7 @@
           t += dt;
           timer -= dt;
           if (timer <= 0 && t < 9.4) {
-            timer = 0.4;
+            timer = 0.28;
             const col = ['#ffffff', '#ff4040', '#5fd0ff', '#ffd84a'][(Math.random() * 4) | 0];
             const side = Math.random() < 0.5 ? 1 : -1;
             spawnBone({
@@ -1157,7 +1164,7 @@
           t += dt;
           timer -= dt;
           if (timer <= 0 && t < 9.2) {
-            timer = 0.32;
+            timer = 0.22;
             spawnBone({
               x: IN.x + 6 + Math.random() * (IN.w - 24),
               y: FLOOR - 42, w: 16, h: 42, vy: -300, fromBottom: true,
@@ -1179,7 +1186,7 @@
           t += dt;
           timer -= dt;
           if (timer <= 0 && t < 9.6) {
-            timer = 0.55;
+            timer = 0.4;
             const a = Math.random() * Math.PI * 2;
             spawnBlaster(a, 0);
             spawnBlaster(a + Math.PI, 0.28);
@@ -1203,7 +1210,7 @@
           t += dt;
           timer -= dt;
           if (timer <= 0 && t < 9.0) {
-            timer = 0.95;
+            timer = 0.66;
             const gapY = IN.y + 24 + Math.random() * (IN.h - 72);
             spawnBone({ x: IN.x + 40, y: IN.y - 6, w: 16, h: gapY - IN.y, vy: 250, color: '#ff4040' });
             spawnBone({ x: IN.x + 130, y: gapY + 36, w: 16, h: IN.y + IN.h - gapY - 36, vy: -250, fromBottom: true, color: '#ffd84a' });
@@ -1246,7 +1253,7 @@
           t += dt;
           timer -= dt;
           if (timer <= 0 && t < 9.2) {
-            timer = 0.66;
+            timer = 0.95;
             const x = IN.x + 6 + Math.random() * (IN.w - 26);
             spawnBone({ x, y: IN.y - 50, w: 14, h: 50, vy: 300 });
             if (Math.random() < 0.45) {
@@ -1889,7 +1896,9 @@
     const shaftW = Math.max(2, thick - knob * 2);
     const endY = len / 2 - knob;
 
-    ctx.fillStyle = b.color || (b.solid ? '#8fd0ff' : '#fff');
+    ctx.fillStyle = diffNow().lethal
+      ? lethalBoneCol((b.x + b.y) * 0.06)
+      : (b.color || (b.solid ? '#8fd0ff' : '#fff'));
     ctx.beginPath();
     ctx.rect(-shaftW / 2, -endY, shaftW, endY * 2);
     for (const sy of [-1, 1]) {
@@ -3096,7 +3105,7 @@
 
   function drawSoulInBox() {
     if (G.player.invuln > 0 && Math.floor(G.t * 20) % 2 === 0) return;
-            drawBigSoul(G.soul.x, G.soul.y, '#ff0000');
+    drawBigSoul(G.soul.x, G.soul.y, diffNow().lethal ? lethalSoulCol() : '#ff0000');
   }
 
   function drawList() {

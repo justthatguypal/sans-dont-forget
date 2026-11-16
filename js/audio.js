@@ -302,7 +302,8 @@ const audio = (() => {
     dying() { play('death'); },
     gameover() { play('gameover'); },
     phase() { play('phase'); },
-    tick() { play('tick'); },
+    /* the timing cue: pitch and level come from how close the cursor is */
+    tick(rate, gain) { play('tick', { rate, gain }); },
 
     /* glass: one hard snap, then chips of it falling away behind */
     crack() {

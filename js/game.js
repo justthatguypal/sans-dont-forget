@@ -95,6 +95,17 @@
      0.9 = about 1.1s each way, 1.1 = about 0.9s, 0.6 = a slow crawl. */
   const FIGHT_SWEEP = 1.1;
 
+  /* the bar sings as the cursor nears the middle: each step is closer to the
+     centre, higher and a touch louder, and the crossing click is the top note */
+  const CUE = [
+    { d: 0.26, rate: 3.2, gain: 0.06 },
+    { d: 0.19, rate: 3.7, gain: 0.07 },
+    { d: 0.13, rate: 4.3, gain: 0.08 },
+    { d: 0.08, rate: 5.0, gain: 0.10 },
+    { d: 0.04, rate: 5.8, gain: 0.11 },
+  ];
+  const CUE_TOP = { rate: 6.8, gain: 0.13 };
+
   /* he wears a different face in every phase: tired, lit up, then empty sockets */
   const PHASE_FACE = { 1: 'face_0', 2: 'face_wide_0', 3: 'face_8', 4: 'face_wide_1', 5: 'face_10' };
 
@@ -192,6 +203,9 @@
     flash: 0,
     dyingT: 0,
     player: { name: 'FRISK', lv: 19, hp: 92, maxhp: 92, kr: 0, invuln: 0 },
+    run: { diff: 1, hits: 0, items: 0, perfect: 0, blueHits: 0, godHits: 0, time: 0, clean: 0, maxClean: 0, mercy: 0, hitAtStart: 0 },
+    achI: 0,
+    achToast: null,
     items: START_ITEMS(),
     turn: 1,
     phase: 0,
@@ -703,8 +717,11 @@
     G.bullets.push(Object.assign({ type: 'bone', x: 0, y: 0, w: 14, h: 40, vx: 0, vy: 0, solid: false }, o));
     const up = o.fromBottom || (o.vy || 0) < 0;
     const down = !up && (o.vy || 0) > 0;
-    if (up) sansPose('handUp', 0.55);
-    else if (down) sansPose('handDown', 0.55);
+    /* one gesture per volley: a rain drops a bone every few frames, and he
+       should not flap along with every single one of them */
+    const quiet = G.t - (G.sans.gestureAt || -9) > 1.6;
+    if (quiet && up) { sansPose('handUp', 0.55); G.sans.gestureAt = G.t; }
+    else if (quiet && down) { sansPose('handDown', 0.55); G.sans.gestureAt = G.t; }
   }
 
   function spawnBlaster(angle, delay = 0, shots = 0) {
@@ -874,6 +891,12 @@
     p.hp -= amount * diffNow().dmg;
     p.kr = Math.min(14, p.kr + 4);
     p.invuln = 0.85;
+    if (G.run) {
+      G.run.hits++;
+      G.run.clean = 0;
+      if (G.soul.mode === 'blue') G.run.blueHits++;
+      if (G.phase >= 5) G.run.godHits++;
+    }
     G.shake = 11;
     audio.hurt();
     burstSparks(G.soul.x + 6, G.soul.y + 5, 7);
@@ -887,6 +910,8 @@
     G.bullets = [];
     G.sparks = [];
     G.attack = null;
+    achBump('deaths');
+    achCheck('lose');
     audio.dying();
     audio.gameover();
   }
@@ -1938,9 +1963,24 @@
       ctx.restore();
       ctx.globalAlpha = 1;
       if (b.phase === 'aim') {
-        ctx.fillStyle = '#fff';
         const o = blasterOrigin(b);
         const d = 20 * BLASTER_S;
+        /* its line, drawn out over the last third of the charge: dashed while
+           it is still settling, solid in the instant before the beam */
+        if (b.pt > 0.10) {
+          const k = Math.min(1, (b.pt - 0.10) / 0.20);
+          ctx.save();
+          ctx.globalAlpha = 0.12 + 0.30 * k;
+          ctx.strokeStyle = '#dcdcff';
+          ctx.lineWidth = 1 + 0.8 * k;
+          ctx.setLineDash(k > 0.75 ? [] : [7, 8]);
+          ctx.beginPath();
+          ctx.moveTo(o.x + Math.cos(b.angle) * (d + 2), o.y + Math.sin(b.angle) * (d + 2));
+          ctx.lineTo(o.x + Math.cos(b.angle) * 900, o.y + Math.sin(b.angle) * 900);
+          ctx.stroke();
+          ctx.restore();
+        }
+        ctx.fillStyle = '#fff';
         ctx.fillRect(Math.round(o.x + Math.cos(b.angle) * d) - 3, Math.round(o.y + Math.sin(b.angle) * d) - 3, 6, 6);
       }
     }
@@ -1998,6 +2038,7 @@
     saveDiff();
     G.player = { name: 'FRISK', lv: 19, hp: d.hp, maxhp: d.hp, kr: 0, invuln: 0 };
     G.items = START_ITEMS();
+    G.run = { diff: G.diff.i, hits: 0, items: 0, perfect: 0, blueHits: 0, godHits: 0, time: 0, clean: 0, maxClean: 0, mercy: 0, hitAtStart: 0 };
     G.turn = 1;
     G.phase = 0;
     G.banner = null;
@@ -2041,6 +2082,7 @@
   }
 
   function startEnemyTurn() {
+    achBump('turns');
     let key = TURN_ATTACKS[G.turn];
     if (!key) { endFightSequence(); return; }
     const ph = phaseForTurn(G.turn);
@@ -2050,6 +2092,8 @@
       /* the last phase is where he finally reaches for it */
       if (ph === 5) swordAnim('equip');
     }
+    /* checked once the phase is set, so "reach the last phase" sees it */
+    achCheck('turn');
     /* once he is like this he does not use his own turn list any more — every
        turn in the last phase is improvised, except the special attack */
     if (ph === 5 && key !== 'finale') key = 'godChaos';
@@ -2057,10 +2101,14 @@
     if (introLines && !G.flags.intros[G.turn]) {
       G.flags.intros[G.turn] = true;
       const go = () => showDialogue(introLines, () => runAttack(key));
-      /* the astral hour opens on the house when it still had people in it */
+      /* the astral hour opens on the house when it still had people in it,
+         and the last phase opens on the night it emptied */
       if (G.turn === 16 && !G.flags.memory) {
         G.flags.memory = true;
         startMemory(go);
+      } else if (G.turn === 20 && !G.flags.memory2) {
+        G.flags.memory2 = true;
+        startMemory(go, MEMORY2);
       } else {
         go();
       }
@@ -2085,6 +2133,7 @@
     G.attack = atk;
     G.attackKey = key;
     G.attack.t = 0;
+    if (G.run) G.run.hitAtStart = G.run.hits;
     G.bullets = [];
     G.sparks = [];
     G.trail = [];
@@ -2096,10 +2145,15 @@
     if (atk.blue) { G.soul.y = FLOOR - G.soul.h; G.soul.onGround = true; }
     G.player.invuln = 0.4;
     sansPose('idle');
+    G.sans.gestureAt = -9;
     if (G.phase === 5) swordAnim(key === 'finale' || Math.random() < 0.3 ? 'heavy' : 'slash');
   }
 
   function endAttack() {
+    if (G.run && G.run.hits === G.run.hitAtStart) {
+      G.run.clean++;
+      if (G.run.clean > G.run.maxClean) G.run.maxClean = G.run.clean;
+    }
     G.attack = null;
     G.bullets = [];
     G.soul.mode = 'red';
@@ -2201,6 +2255,7 @@
     const it = G.items[idx];
     const p = G.player;
     it.count--;
+    if (G.run) G.run.items++;
     const healed = Math.min(it.heal, p.maxhp - p.hp);
     p.hp = Math.min(p.maxhp, p.hp + it.heal);
     p.kr = Math.max(0, p.kr - 6);
@@ -2239,6 +2294,8 @@
   /* ---------------- endings ---------------- */
   function spareEnding() {
     markCleared();
+    achBump('clears');
+    achCheck('win');
     G.flags.ending = 'spare';
     sansPose('idle');
     G.sans.face = 'face_0';
@@ -2247,6 +2304,8 @@
 
   function killEnding() {
     markCleared();
+    achBump('clears');
+    achCheck('win');
     G.flags.ending = 'kill';
     G.flash = 1;
     G.sans.alpha = 1;
@@ -2267,8 +2326,15 @@
     { art: 'machine', line: 'the older one watched. he learned the joke before he learned the words.' },
   ];
 
-  function startMemory(cb) {
-    G.mem = { i: 0, t: 0, cb };
+  /* the second one: the night the machine took him */
+  const MEMORY2 = [
+    { art: 'break', line: 'the machine came apart with him still holding it.' },
+    { art: 'rift', line: 'there was no body. only a hole where he had been standing.' },
+    { art: 'after', line: 'they waited by it for years. it never stopped humming.' },
+  ];
+
+  function startMemory(cb, panels) {
+    G.mem = { i: 0, t: 0, cb, panels: panels || MEMORY };
     G.mode = 'memory';
   }
 
@@ -2280,7 +2346,7 @@
     audio.select();
     m.i++;
     m.t = 0;
-    if (m.i >= MEMORY.length) {
+    if (m.i >= m.panels.length) {
       const cb = m.cb;
       G.mem = null;
       G.mode = 'menu';
@@ -2421,12 +2487,36 @@
     ctx.stroke();
   }
 
+  /* a tear in the air where he used to be */
+  function memRift(x, y, sc) {
+    ctx.save();
+    ctx.strokeStyle = '#8b5bff';
+    ctx.lineWidth = Math.max(1, 3 * sc);
+    ctx.beginPath();
+    for (let i = 0; i <= 12; i++) {
+      const yy = y - 60 * sc + i * 10 * sc;
+      const xx = x + Math.sin(i * 1.7 + G.t * 0.6) * 9 * sc;
+      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = '#e6e6e6';
+    ctx.lineWidth = Math.max(1, 1.2 * sc);
+    ctx.beginPath();
+    for (let i = 0; i <= 12; i++) {
+      const yy = y - 60 * sc + i * 10 * sc;
+      const xx = x + Math.cos(i * 2.1 + G.t * 0.8) * 4.5 * sc;
+      if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawMemory() {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
     const m = G.mem;
     if (!m) return;
-    const p = MEMORY[Math.min(m.i, MEMORY.length - 1)];
+    const p = m.panels[Math.min(m.i, m.panels.length - 1)];
 
     ctx.strokeStyle = '#242424';
     ctx.lineWidth = 2;
@@ -2438,20 +2528,150 @@
     } else if (p.art === 'mobile') {
       memBaby(320, 230, 1.5);
       memMobile(320, 118, 1.3);
-    } else {
+    } else if (p.art === 'machine') {
       memMachine(348, 138, 1.4);
       memGaster(236, 104, 1.2);
       memKidSans(438, 246, 1.1);
+    } else if (p.art === 'break') {
+      memMachine(348, 138, 1.4);
+      memGaster(236, 104, 1.2, { x: 300, y: 172 });
+      /* a plate swinging off it, still attached at one corner */
+      ctx.strokeStyle = '#6a6a6a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(302, 150);
+      ctx.lineTo(368, 198);
+      ctx.stroke();
+    } else if (p.art === 'rift') {
+      memMachine(348, 138, 1.4);
+      memRift(252, 168, 1.6);
+      memKidSans(438, 246, 1.1);
+    } else {
+      memMachine(326, 142, 1.35);
+      memKidSans(430, 250, 1.15);
+      memBaby(214, 252, 1.15);
     }
 
     txt(p.line, W / 2, 330, '#dcdcdc', F14, 'center');
-    txt('a memory  ' + (m.i + 1) + ' / ' + MEMORY.length, 82, 372, '#4a4a4a', F12);
+    txt('a memory  ' + (m.i + 1) + ' / ' + m.panels.length, 82, 372, '#4a4a4a', F12);
     if (Math.floor(G.t * 2) % 2 === 0) txt('Z', W - 96, 372, '#6a6a6a', F12, 'right');
+  }
+
+  /* ---------------- achievements ----------------
+     The hard ones are the point of the tab, so most of these ask for things a
+     normal clear will not give you. Conditions are checked at the moment they
+     become possible rather than every frame. */
+  const ACH_KEY = 'sans.ach';
+
+  const ACH = [
+    { id: 'clear', name: 'DON\'T FORGET', desc: 'clear the fight, any difficulty', when: 'win' },
+    { id: 'clear_hard', name: 'NO RULES LEFT', desc: 'clear on HARD or above', when: 'win', test: (r) => r.diff >= 2 },
+    { id: 'clear_insane', name: 'STILL SMILING', desc: 'clear on INSANE or above', when: 'win', test: (r) => r.diff >= 3 },
+    { id: 'clear_bad', name: 'BAD TIME', desc: 'clear on BAD TIME', when: 'win', test: (r) => r.diff >= 4 },
+    { id: 'flawless', name: 'NOT ONE SCRATCH', desc: 'clear without taking a single hit', when: 'win', test: (r) => r.hits === 0 },
+    { id: 'no_items', name: 'EMPTY POCKETS', desc: 'clear without using an item', when: 'win', test: (r) => r.items === 0 },
+    { id: 'one_hp', name: 'ONE MORE STEP', desc: 'clear with 1 HP or less', when: 'win', test: (r, g) => g.player.hp <= 1 },
+    { id: 'quick', name: 'IN A HURRY', desc: 'clear in under nine minutes', when: 'win', test: (r) => r.time < 540 },
+    { id: 'bruised', name: 'STILL STANDING', desc: 'clear after taking 20 hits', when: 'win', test: (r) => r.hits >= 20 },
+    { id: 'blue_clean', name: 'BLUE IN THE FACE', desc: 'clear with no blue-soul hits', when: 'win', test: (r) => r.blueHits === 0 },
+    { id: 'god_clean', name: 'NOTHING TO HOLD', desc: 'clear the god phase untouched', when: 'win', test: (r) => r.godHits === 0 },
+    { id: 'clean_ten', name: 'TEN GOOD TURNS', desc: 'ten attacks in a row without a hit', when: 'win', test: (r) => r.maxClean >= 10 },
+    { id: 'perfect', name: 'DEAD CENTRE', desc: 'land a perfect FIGHT hit', when: 'perfect' },
+    { id: 'perfect_ten', name: 'TEN DEAD CENTRES', desc: 'ten perfect hits in one run', when: 'perfect', test: (r) => r.perfect >= 10 },
+    { id: 'perfect_50', name: 'METRONOME', desc: 'fifty perfect hits, lifetime', when: 'perfect', test: (r, g, s) => s.perfect >= 50 },
+    { id: 'reach_god', name: 'HE NOTICED YOU', desc: 'reach the last phase', when: 'turn', test: (r, g) => g.phase >= 5 },
+    { id: 'deep', name: 'TO THE LAST TURN', desc: 'reach the finale', when: 'turn', test: (r, g) => g.turn >= 24 },
+    { id: 'deaths_25', name: 'TWENTY FIVE TIMES', desc: 'die twenty five times', when: 'lose', test: (r, g, s) => s.deaths >= 25 },
+    { id: 'deaths_100', name: 'YOU KEEP COMING', desc: 'die a hundred times', when: 'lose', test: (r, g, s) => s.deaths >= 100 },
+    { id: 'turns_200', name: 'MARATHON', desc: 'two hundred turns, lifetime', when: 'turn', test: (r, g, s) => s.turns >= 200 },
+    { id: 'no_mercy', name: 'HE NEVER ASKED', desc: 'clear having never pressed MERCY', when: 'win', test: (r) => r.mercy === 0 },
+  ];
+
+  function achLoad() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(ACH_KEY) || 'null');
+      if (raw && typeof raw === 'object') return { u: raw.u || {}, s: raw.s || {} };
+    } catch (e) { /* storage can be blocked; the tab still works this visit */ }
+    return { u: {}, s: {} };
+  }
+  const ACHS = achLoad();
+
+  function achSave() {
+    try { localStorage.setItem(ACH_KEY, JSON.stringify({ u: ACHS.u, s: ACHS.s })); } catch (e) { /* fine */ }
+  }
+  function achBump(k, n = 1) { ACHS.s[k] = (ACHS.s[k] || 0) + n; achSave(); }
+
+  function achUnlock(id) {
+    if (ACHS.u[id]) return;
+    ACHS.u[id] = 1;
+    achSave();
+    G.achToast = { id, t: 0 };
+    audio.levelup();
+  }
+
+  function achCheck(when) {
+    const r = G.run || {};
+    for (const a of ACH) {
+      if (a.when !== when || ACHS.u[a.id]) continue;
+      let ok;
+      try { ok = a.test ? !!a.test(r, G, ACHS.s) : true; } catch (e) { ok = false; }
+      if (ok) achUnlock(a.id);
+    }
+  }
+
+  function achName(id) {
+    const a = ACH.find((x) => x.id === id);
+    return a ? a.name : '';
+  }
+
+  function drawAchToast() {
+    const t = G.achToast;
+    const a = 1 - Math.max(0, t.t - 2.4) / 0.8;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, a);
+    txt('ACHIEVEMENT  ' + achName(t.id), W / 2, 22, '#ffff00', F12, 'center');
+    ctx.restore();
+  }
+
+  /* ---------------- the achievement wall ---------------- */
+  function drawAch() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    const got = ACH.filter((a) => ACHS.u[a.id]).length;
+    txt('ACHIEVEMENTS', W / 2, 44, '#ffff00', F18, 'center');
+    txt(got + ' / ' + ACH.length + '  unlocked', W / 2, 66, '#9d9d9d', F12, 'center');
+
+    const rows = 10;
+    const top = 96;
+    const sel = Math.max(0, Math.min(ACH.length - 1, G.achI || 0));
+    const from = Math.max(0, Math.min(ACH.length - rows, sel - Math.floor(rows / 2)));
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(56, top - 10, 528, rows * 30 + 8);
+    for (let i = 0; i < rows && from + i < ACH.length; i++) {
+      const a = ACH[from + i];
+      const y = top + i * 30;
+      const unlocked = !!ACHS.u[a.id];
+      const on = from + i === sel;
+      if (on) {
+        ctx.fillStyle = 'rgba(255,255,0,0.10)';
+        ctx.fillRect(58, y - 12, 524, 28);
+      }
+      txt(a.name, 74, y, unlocked ? '#ffff00' : '#4a4a4a', F12);
+      txt(unlocked ? a.desc : 'locked', 286, y, unlocked ? '#bdbdbd' : '#333333', F12);
+    }
+    txt('↑↓ look       X back', W / 2, 442, '#6a6a6a', F12, 'center');
+    txt('a few of these will take a while.', W / 2, 464, '#333333', F12, 'center');
   }
 
   /* ---------------- per-mode update ---------------- */
   function update(dt) {
     G.t += dt;
+    if (G.run) G.run.time += dt;
+    if (G.achToast) {
+      G.achToast.t += dt;
+      if (G.achToast.t > 3.2) G.achToast = null;
+    }
     if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 46);
     if (G.flash > 0) G.flash = Math.max(0, G.flash - dt * 1.6);
     if (G.banner) {
@@ -2469,8 +2689,16 @@
         updateMemory(dt);
         break;
 
+      case 'ach': {
+        if (heldPress('ArrowDown', dt) || heldPress('KeyS', dt)) { G.achI = Math.min(ACH.length - 1, (G.achI || 0) + 1); audio.move(); }
+        if (heldPress('ArrowUp', dt) || heldPress('KeyW', dt)) { G.achI = Math.max(0, (G.achI || 0) - 1); audio.move(); }
+        if (okPressed() || backPressed()) { audio.cancel(); G.mode = 'title'; }
+        break;
+      }
+
       case 'title':
         if (pressed.has('KeyT')) { audio.select(); G.tuner.i = 0; G.mode = 'tuner'; break; }
+        if (pressed.has('KeyA')) { audio.select(); G.achI = 0; G.mode = 'ach'; break; }
         if (okPressed()) { audio.select(); G.mode = 'diff'; }
         break;
 
@@ -2516,10 +2744,10 @@
             if (G.flags.finale) { killEnding(); break; }
             G.mode = 'fight';
             /* the attack bar starts sweeping the moment FIGHT is picked */
-            G.fight = { stage: 'bar', pos: 0, dir: 1, t: 0, hit: 0 };
+            G.fight = { stage: 'bar', pos: 0, dir: 1, t: 0, hit: 0, arm: 0, armD: 1 };
           } else if (G.menu.i === 1) { G.mode = 'act'; G.menu.i = 0; }
           else if (G.menu.i === 2) { G.mode = 'item'; G.menu.i = 0; }
-          else { G.mode = 'mercy'; G.menu.i = 0; }
+          else { if (G.run) G.run.mercy++; G.mode = 'mercy'; G.menu.i = 0; }
         }
         break;
       }
@@ -2549,9 +2777,21 @@
           f.pos += f.dir * dt * FIGHT_SWEEP * (diffNow().bar || 1);
           if (f.pos > 1) { f.pos = 1; f.dir = -1; }
           if (f.pos < 0) { f.pos = 0; f.dir = 1; }
-          /* a click as the cursor crosses dead centre, so the sweet spot can
-             be timed by ear as well as by eye */
-          if ((prevPos < 0.5 && f.pos >= 0.5) || (prevPos > 0.5 && f.pos <= 0.5)) audio.tick();
+          /* distance to dead centre, which is what the cue is built on */
+          const away = Math.abs(f.pos - 0.5);
+          /* it turned back outwards: next pass starts from the bottom of the run */
+          if (away > f.armD + 0.004) f.arm = 0;
+          /* only gained on the way in, so crossing the middle does not replay
+             the whole run of notes at once */
+          while (f.arm < CUE.length && away <= CUE[f.arm].d) {
+            if (f.armD > CUE[f.arm].d) audio.tick(CUE[f.arm].rate, CUE[f.arm].gain);
+            f.arm++;
+          }
+          f.armD = away;
+          /* the note on the crossing itself */
+          if ((prevPos < 0.5 && f.pos >= 0.5) || (prevPos > 0.5 && f.pos <= 0.5)) {
+            audio.tick(CUE_TOP.rate, CUE_TOP.gain);
+          }
           if (okPressed()) {
             audio.slash();
             /* 1 dead centre, 0 at the very end of the bar */
@@ -2643,6 +2883,11 @@
 
   function resolveFight(closeness) {
     G.flags.dodges++;
+    if (G.run && closeness >= 0.98) {
+      G.run.perfect++;
+      achBump('perfect');
+      achCheck('perfect');
+    }
 
     /* the single connection he allows: dead centre, once */
     if (G.fight && G.fight.landed) {
@@ -2677,6 +2922,8 @@
       drawMemory();
     } else if (G.mode === 'credits') {
       drawCredits();
+    } else if (G.mode === 'ach') {
+      drawAch();
     } else {
       drawBackground();
       if (G.mode !== 'gameover') drawSans();
@@ -2718,6 +2965,7 @@
     ctx.restore();
 
     if (G.shatter) drawShatter();
+    if (G.achToast) drawAchToast();
 
     if (G.flash > 0) {
       ctx.fillStyle = 'rgba(255,255,255,' + Math.min(1, G.flash) + ')';
@@ -2973,4 +3221,5 @@
 
   render();
   requestAnimationFrame(frame);
+
 })();

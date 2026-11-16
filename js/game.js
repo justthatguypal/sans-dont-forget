@@ -540,6 +540,17 @@
     const labels = ['FIGHT', 'ACT', 'ITEM', 'MERCY'];
     const colW = BOX.w / 4;
     const neon = G.phase >= 2;
+    /* from the astral hour the four words will not sit still, and by the last
+       phase they wander properly: the selection still reads by colour and the
+       heart, so nothing about the fight changes, only what you are looking at */
+    if (G.phase >= 4) {
+      const a = G.phase >= 5 ? 1 : 0.35;
+      ctx.save();
+      ctx.translate(Math.sin(G.t * 0.63) * 26 * a, Math.sin(G.t * 1.07) * 7 * a);
+      ctx.rotate(Math.sin(G.t * 0.41) * 0.012 * a);
+    } else {
+      ctx.save();
+    }
     for (let i = 0; i < 4; i++) {
       const cx = BOX.x + colW * i + colW / 2;
       const selected = G.mode === 'menu' && G.menu.i === i;
@@ -548,6 +559,7 @@
       else txt(labels[i], cx, MENU_Y, selected ? '#ffff00' : '#fff', F18, 'center');
       if (selected) drawSoul(cx - textWidth(labels[i], F18) / 2 - 18, MENU_Y + 4, '#ff0000', 1);
     }
+    ctx.restore();
   }
 
   function drawBanner() {
@@ -2229,6 +2241,12 @@
     /* once he is like this he does not use his own turn list any more — every
        turn in the last phase is improvised, except the special attack */
     if (ph === 5 && key !== 'finale') key = 'godChaos';
+    /* the lethal fight opens on a cutscene, before the first attack */
+    if (diffNow().lethal && G.turn === 1 && !G.flags.lethalOpen) {
+      G.flags.lethalOpen = true;
+      startMemory(() => runAttack(key), OPEN_LETHAL);
+      return;
+    }
     const introLines = STORY.phase[G.turn];
     if (introLines && !G.flags.intros[G.turn]) {
       G.flags.intros[G.turn] = true;
@@ -2469,6 +2487,14 @@
     { art: 'after', line: 'they waited by it for years. it never stopped humming.' },
   ];
 
+  /* the lethal fight opens on him already past the world: three panels drawn
+     the same way as the memories, but these are happening now */
+  const OPEN_LETHAL = [
+    { art: 'rise', line: 'you are still standing in the hallway. he is not.' },
+    { art: 'blade', line: 'he stopped holding back somewhere you were not looking.' },
+    { art: 'deal', line: 'so he offers you one. it is not a good one.' },
+  ];
+
   function startMemory(cb, panels) {
     G.mem = { i: 0, t: 0, cb, panels: panels || MEMORY };
     G.mode = 'memory';
@@ -2678,6 +2704,75 @@
       ctx.moveTo(302, 150);
       ctx.lineTo(368, 198);
       ctx.stroke();
+    } else if (p.art === 'rise') {
+      /* columns of bad light, a box far below, and him above all of it */
+      for (let i = 0; i < 5; i++) {
+        const x = 150 + i * 88;
+        const grad = ctx.createLinearGradient(0, 60, 0, 300);
+        grad.addColorStop(0, 'rgba(255,60,60,' + (0.05 + 0.04 * i) + ')');
+        grad.addColorStop(1, 'rgba(255,60,60,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, 40, 26, 280);
+      }
+      ctx.strokeStyle = '#3a3a3a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(150, 258, 340, 46);
+      drawSoul(316, 274, '#a00000', 1);
+      /* him, small and high, with the halo */
+      ctx.fillStyle = '#e6e6e6';
+      ctx.beginPath();
+      ctx.ellipse(320, 96, 17, 19, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(296, 112, 48, 62);
+      ctx.strokeStyle = '#ff4a4a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(320, 70, 30, 8, Math.sin(G.t * 0.8) * 0.12, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (p.art === 'blade') {
+      /* the sword standing upright in the dark, halo around its point */
+      ctx.save();
+      ctx.translate(320, 190);
+      ctx.rotate(-0.06 + Math.sin(G.t * 1.4) * 0.02);
+      ctx.fillStyle = '#2b5fd9';
+      ctx.fillRect(-9, -96, 18, 150);
+      ctx.fillStyle = '#dce8ff';
+      ctx.fillRect(-4, -96, 7, 150);
+      ctx.fillStyle = '#e6e6e6';
+      ctx.fillRect(-30, 54, 60, 10);
+      ctx.fillRect(-7, 64, 14, 40);
+      ctx.beginPath();
+      ctx.ellipse(0, 116, 20, 24, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ff4a4a';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(0, -118 + Math.sin(G.t * 1.6) * 5, 44, 12, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else if (p.art === 'deal') {
+      /* two hands meeting over the box: one of bone, one of light */
+      ctx.strokeStyle = '#e6e6e6';
+      ctx.lineWidth = 9;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(150, 250);
+      ctx.quadraticCurveTo(250, 170, 312, 150);
+      ctx.stroke();
+      ctx.strokeStyle = '#ff4a4a';
+      ctx.beginPath();
+      ctx.moveTo(490, 250);
+      ctx.quadraticCurveTo(390, 170, 328, 150);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(320, 148, 9 + Math.sin(G.t * 3) * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#3a3a3a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(210, 262, 220, 42);
+      drawSoul(316, 276, '#a00000', 1);
     } else if (p.art === 'rift') {
       memMachine(348, 138, 1.4);
       memRift(252, 168, 1.6);

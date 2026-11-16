@@ -11,6 +11,7 @@ const audio = (() => {
   const tracks = {
     main: new Audio('assets/audio/megalovania.mp3'),
     phase3: new Audio('assets/audio/megalovania-phase3.mp3'),
+    lethal: new Audio('assets/audio/lethal.mp3'),
   };
   for (const key in tracks) {
     const t = tracks[key];

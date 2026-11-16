@@ -119,6 +119,9 @@
     { name: 'HARD', hp: 76, dmg: 1.35, speed: 1.18, bar: 1.15, blurb: 'he stops explaining the rules.' },
     { name: 'INSANE', hp: 60, dmg: 1.7, speed: 1.32, bar: 1.3, blurb: 'the hallway stops forgiving.' },
     { name: 'BAD TIME', hp: 56, dmg: 2.1, speed: 1.36, bar: 1.45, blurb: 'you asked for this one.', hot: true },
+    /* not a difficulty: a different fight. he is past time here, and only his
+       own attacks run, all of them at once, with the Lethal Deal track under it */
+    { name: 'LETHAL DEAL', hp: 44, dmg: 2.2, speed: 1.5, bar: 1.5, lethal: true, blurb: 'he is above all of it now.', hot: true },
   ];
   function diffNow() { return DIFFS[G.diff.i] || DIFFS[1]; }
 
@@ -1118,6 +1121,99 @@
       };
     },
 
+    /* ---------------- the lethal deal ----------------
+       Every bone here is coloured, and they come from everywhere at once. */
+    lethalColour() {
+      let t = 0;
+      let timer = 0.45;
+      return {
+        dur: 10.5,
+        blue: false,
+        update(dt) {
+          t += dt;
+          timer -= dt;
+          if (timer <= 0 && t < 9.4) {
+            timer = 0.4;
+            const col = ['#ffffff', '#ff4040', '#5fd0ff', '#ffd84a'][(Math.random() * 4) | 0];
+            const side = Math.random() < 0.5 ? 1 : -1;
+            spawnBone({
+              x: side > 0 ? IN.x + IN.w + 8 : IN.x - 24,
+              y: IN.y + 10 + Math.random() * (IN.h - 50),
+              w: 14, h: 34, vx: -side * (210 + Math.random() * 140), color: col,
+            });
+          }
+          return t >= 10.3;
+        },
+      };
+    },
+
+    lethalTorrent() {
+      let t = 0;
+      let timer = 0.32;
+      return {
+        dur: 10.4,
+        blue: false,
+        update(dt) {
+          t += dt;
+          timer -= dt;
+          if (timer <= 0 && t < 9.2) {
+            timer = 0.32;
+            spawnBone({
+              x: IN.x + 6 + Math.random() * (IN.w - 24),
+              y: FLOOR - 42, w: 16, h: 42, vy: -300, fromBottom: true,
+              color: Math.random() < 0.5 ? '#ff4040' : '#ffd84a',
+            });
+          }
+          return t >= 10.2;
+        },
+      };
+    },
+
+    lethalBlades() {
+      let t = 0;
+      let timer = 0.55;
+      return {
+        dur: 11.0,
+        blue: false,
+        update(dt) {
+          t += dt;
+          timer -= dt;
+          if (timer <= 0 && t < 9.6) {
+            timer = 0.55;
+            const a = Math.random() * Math.PI * 2;
+            spawnBlaster(a, 0);
+            spawnBlaster(a + Math.PI, 0.28);
+            spawnBone({
+              x: IN.x + IN.w + 10, y: IN.y + 8, w: 15, h: IN.h - 16, vx: -235,
+              color: ['#5fd0ff', '#ff4040', '#ffffff'][(Math.random() * 3) | 0],
+            });
+          }
+          return t >= 10.8;
+        },
+      };
+    },
+
+    lethalCage() {
+      let t = 0;
+      let timer = 0.95;
+      return {
+        dur: 10.6,
+        blue: false,
+        update(dt) {
+          t += dt;
+          timer -= dt;
+          if (timer <= 0 && t < 9.0) {
+            timer = 0.95;
+            const gapY = IN.y + 24 + Math.random() * (IN.h - 72);
+            spawnBone({ x: IN.x + 40, y: IN.y - 6, w: 16, h: gapY - IN.y, vy: 250, color: '#ff4040' });
+            spawnBone({ x: IN.x + 130, y: gapY + 36, w: 16, h: IN.y + IN.h - gapY - 36, vy: -250, fromBottom: true, color: '#ffd84a' });
+            spawnBlaster(Math.PI / 2, 0.15);
+          }
+          return t >= 10.4;
+        },
+      };
+    },
+
     blueGauntlet() {
       let t = 0;
       let timer = 1.3;
@@ -1793,7 +1889,7 @@
     const shaftW = Math.max(2, thick - knob * 2);
     const endY = len / 2 - knob;
 
-    ctx.fillStyle = b.solid ? '#8fd0ff' : '#fff';
+    ctx.fillStyle = b.color || (b.solid ? '#8fd0ff' : '#fff');
     ctx.beginPath();
     ctx.rect(-shaftW / 2, -endY, shaftW, endY * 2);
     for (const sy of [-1, 1]) {
@@ -2081,11 +2177,16 @@
     startEnemyTurn();
   }
 
+  /* the lethal fight's own run of attacks, cycled for every turn */
+  const LETHAL_TURNS = ['lethalColour', 'lethalTorrent', 'lethalBlades', 'lethalCage'];
+
   function startEnemyTurn() {
     achBump('turns');
-    let key = TURN_ATTACKS[G.turn];
+    let key = diffNow().lethal
+      ? (G.turn >= 24 ? 'finale' : LETHAL_TURNS[(G.turn - 1) % LETHAL_TURNS.length])
+      : TURN_ATTACKS[G.turn];
     if (!key) { endFightSequence(); return; }
-    const ph = phaseForTurn(G.turn);
+    const ph = diffNow().lethal ? 5 : phaseForTurn(G.turn);
     if (ph !== G.phase) {
       G.phase = ph;
       G.bannerPending = true;
@@ -2139,6 +2240,8 @@
     G.trail = [];
     G.dust = [];
     G.mode = 'bullet';
+    /* his own track takes over for this fight */
+    if (diffNow().lethal) audio.setTrack('lethal', { quantize: true });
     G.soul.pull = null;
     G.soul.mode = atk.blue ? 'blue' : 'red';
     centreSoul();

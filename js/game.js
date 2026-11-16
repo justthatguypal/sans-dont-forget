@@ -74,6 +74,10 @@
   /* how much bigger than the raw sheet the blaster skulls are drawn */
   const BLASTER_S = 1.5;
 
+  /* half-width of a beam's hurtbox. The white core is drawn to exactly this
+     width, so the bright part of the beam is the only part that burns you. */
+  const BEAM_HALF = 12.5;
+
   /* FIGHT bar: how many times the cursor crosses the bar per second.
      0.9 = about 1.1s each way, 1.1 = about 0.9s, 0.6 = a slow crawl. */
   const FIGHT_SWEEP = 1.1;
@@ -695,7 +699,7 @@
     const ry = hb.y + hb.h / 2 - o.y;
     const along = rx * dx + ry * dy;
     const perp = Math.abs(-rx * dy + ry * dx);
-    return along > 10 && along < 1200 && perp < 15;
+    return along > 10 && along < 1200 && perp < BEAM_HALF;
   }
 
   function burstSparks(x, y, n) {
@@ -1811,7 +1815,13 @@
       ctx.fillRect(-21, y0 + 3, 42, len);
       ctx.globalAlpha = 1;
       ctx.fillStyle = '#fff';
-      ctx.fillRect(-14, y0 + 5, 28, len);
+      ctx.fillRect(-BEAM_HALF, y0 + 5, BEAM_HALF * 2, len);
+      /* hairline on the hurt edge: inside the white burns, the glow outside it
+         does not, so the safe edge is where you can see it */
+      ctx.globalAlpha = 0.42;
+      ctx.strokeStyle = '#a8a8e0';
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(-BEAM_HALF - 0.7, y0 + 4, BEAM_HALF * 2 + 1.4, len);
       ctx.restore();
       ctx.globalAlpha = 1;
     }

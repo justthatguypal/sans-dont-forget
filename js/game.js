@@ -1221,6 +1221,27 @@
       };
     },
 
+    lethalHold() {
+      /* he keeps the soul himself for this one: it burns while he holds it, and
+         moving is exactly what he is punishing */
+      let t = 0;
+      let timer = 1.1;
+      return {
+        dur: 9.2,
+        dark: true,
+        blue: false,
+        update(dt) {
+          t += dt;
+          timer -= dt;
+          if (timer <= 0 && t < 8.6) {
+            timer = 1.1;
+            spawnBlaster(Math.random() * Math.PI * 2, 0);
+          }
+          return t >= 9.0;
+        },
+      };
+    },
+
     blueGauntlet() {
       let t = 0;
       let timer = 1.3;
@@ -2187,7 +2208,7 @@
   }
 
   /* the lethal fight's own run of attacks, cycled for every turn */
-  const LETHAL_TURNS = ['lethalColour', 'lethalTorrent', 'lethalBlades', 'lethalCage'];
+  const LETHAL_TURNS = ['lethalColour', 'lethalTorrent', 'lethalBlades', 'lethalCage', 'lethalHold'];
 
   function startEnemyTurn() {
     achBump('turns');
@@ -2251,6 +2272,8 @@
     G.mode = 'bullet';
     /* his own track takes over for this fight */
     if (diffNow().lethal) audio.setTrack('lethal', { quantize: true });
+    /* attacks that take the soul hold it for their whole length */
+    G.soul.dark = atk.dark ? atk.dur : 0;
     G.soul.pull = null;
     G.soul.mode = atk.blue ? 'blue' : 'red';
     centreSoul();
@@ -2925,6 +2948,20 @@
         const a = G.attack;
         if (!a) { startPlayerTurn(); break; }
         a.t += dt;
+        /* he takes the soul and holds it: it goes dark red, he decides where it
+           is, and any movement key costs you */
+        if (G.soul.dark > 0) {
+          G.soul.dark -= dt;
+          G.player.hp -= dt * 2.2;
+          if (G.player.hp <= 0) { die(); break; }
+          const moved = keys.ArrowLeft || keys.ArrowRight || keys.ArrowUp || keys.ArrowDown
+            || keys.KeyA || keys.KeyD || keys.KeyW || keys.KeyS;
+          if (moved && G.player.invuln <= 0) hurt(2.2);
+          const cx = IN.x + IN.w / 2;
+          const cy = IN.y + IN.h / 2;
+          G.soul.x = cx - G.soul.w / 2 + Math.sin(G.t * 0.9) * (IN.w / 2 - 40);
+          G.soul.y = cy - G.soul.h / 2 + Math.cos(G.t * 1.3) * (IN.h / 2 - 30);
+        }
         if (G.player.invuln > 0) G.player.invuln -= dt;
         if (G.player.kr > 0) {
           G.player.hp -= G.player.kr * dt * 0.30;
@@ -3105,7 +3142,10 @@
 
   function drawSoulInBox() {
     if (G.player.invuln > 0 && Math.floor(G.t * 20) % 2 === 0) return;
-    drawBigSoul(G.soul.x, G.soul.y, diffNow().lethal ? lethalSoulCol() : '#ff0000');
+    const held = G.soul.dark > 0;
+    drawBigSoul(G.soul.x, G.soul.y, held
+      ? (Math.floor(G.t * 10) % 2 ? '#7a0000' : '#3a0000')
+      : (diffNow().lethal ? lethalSoulCol() : '#ff0000'));
   }
 
   function drawList() {

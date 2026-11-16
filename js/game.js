@@ -1261,6 +1261,35 @@
       };
     },
 
+    swordSweep() {
+      /* the blade comes off his shoulder and goes for the soul itself */
+      let t = 0;
+      let timer = 0.85;
+      return {
+        dur: 9.4,
+        blue: false,
+        update(dt) {
+          t += dt;
+          timer -= dt;
+          if (timer <= 0 && t < 8.6) {
+            timer = 0.85;
+            const fromLeft = Math.random() < 0.5;
+            const sy = G.soul.y + 5;
+            spawnBone({
+              x: fromLeft ? IN.x - 96 : IN.x + IN.w + 4,
+              y: Math.max(IN.y, Math.min(FLOOR - 40, sy - 20 + (Math.random() - 0.5) * 26)),
+              w: 92, h: 40,
+              vx: (fromLeft ? 1 : -1) * (280 + Math.random() * 90),
+              sword: true,
+            });
+            swordAnim('slash');
+            audio.slash();
+          }
+          return t >= 9.2;
+        },
+      };
+    },
+
     blueGauntlet() {
       let t = 0;
       let timer = 1.3;
@@ -1907,9 +1936,32 @@
   }
 
   /* ---------------- drawing bullets ---------------- */
+  /* the blade as it crosses the box: a crescent riding its own hitbox */
+  function drawSwordBullet(b) {
+    const dir = b.vx >= 0 ? 1 : -1;
+    ctx.save();
+    ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
+    ctx.scale(dir, 1);
+    const grd = ctx.createLinearGradient(-b.w / 2, 0, b.w / 2, 0);
+    grd.addColorStop(0, 'rgba(120,170,255,0)');
+    grd.addColorStop(0.45, 'rgba(190,220,255,0.75)');
+    grd.addColorStop(1, '#ffffff');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.moveTo(-b.w / 2, -b.h / 2);
+    ctx.quadraticCurveTo(b.w * 0.2, 0, -b.w / 2, b.h / 2);
+    ctx.quadraticCurveTo(b.w * 0.02, 0, -b.w / 2, -b.h / 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,80,80,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawBones() {
     for (const b of G.bullets) {
       if (b.type !== 'bone') continue;
+      if (b.sword) { drawSwordBullet(b); continue; }
       if (b.t < 0.08) {
         ctx.globalAlpha = 0.3;
         ctx.fillStyle = '#fff';
@@ -2260,7 +2312,7 @@
     achCheck('turn');
     /* once he is like this he does not use his own turn list any more — every
        turn in the last phase is improvised, except the special attack */
-    if (ph === 5 && key !== 'finale') key = 'godChaos';
+    if (ph === 5 && key !== 'finale') key = Math.random() < 0.4 ? 'swordSweep' : 'godChaos';
     /* the lethal fight opens on a cutscene, before the first attack */
     if (diffNow().lethal && G.turn === 1 && !G.flags.lethalOpen) {
       G.flags.lethalOpen = true;
